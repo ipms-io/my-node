@@ -3,7 +3,7 @@ using ZeroFormatter;
 using ZeroFormatter.Formatters;
 using ZeroFormatter.Internal;
 
-namespace my_node
+namespace my_node.formatters
 {
     public class Uint256Formatter : Formatter<DefaultResolver, uint256>
     {

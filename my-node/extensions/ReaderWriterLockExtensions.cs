@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 
-namespace my_node
+namespace my_node.extensions
 {
     public enum ReaderWriterLockType
     {

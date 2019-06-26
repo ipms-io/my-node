@@ -6,7 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ZeroFormatter.Formatters;
+using my_node.formatters;
+using my_node.extensions;
 
 namespace my_node
 {
@@ -25,7 +26,7 @@ namespace my_node
 
         static async Task Main(string[] args)
         {
-            Formatter<DefaultResolver, uint256>.Register(new Uint256Formatter());
+            RegisterFormatters.RegisterAll();
             _txMap = new Dictionary<uint256, Transaction>();
 
             var addressManager = new AddressManager();
@@ -78,22 +79,6 @@ namespace my_node
             {
                 using (var stream = new FileStream(_blockTransactionsFile, FileMode.Open))
                     _blockTx.Load(stream);
-            }
-        }
-
-        private static async Task LoadSlimChainFile(Node node)
-        {
-            Directory.CreateDirectory(_path);
-            if (File.Exists(_slimChainFile))
-            {
-                _chain = new SlimChain(Network.Main.GenesisHash);
-
-                using (var stream = new FileStream(_slimChainFile, FileMode.Open))
-                    _chain.Load(stream);
-            }
-            else
-            {
-                await FirstSync(node);
             }
         }
 
@@ -212,7 +197,16 @@ namespace my_node
             });
         }
 
-        static async Task FirstSync(Node node)
+        static void SaveBlockTransactionsFile()
+        {
+            using (var stream = new FileStream(_blockTransactionsFile, FileMode.Create))
+            {
+                _blockTx.Save(stream);
+                Console.WriteLine($"BlockTransaction file saved to {stream.Name}");
+            }
+        }
+
+        private async Task FirstSync(Node node)
         {
             Console.WriteLine("Downloading chain headers for the first time.");
             Console.WriteLine("It may take a few minutes to finish. Be patient...");
@@ -223,28 +217,7 @@ namespace my_node
 
             SaveSlimChainFile();
         }
-
-        static void SaveSlimChainFile()
-        {
-            lock (_syncLock)
-            {
-                using (var stream = new FileStream(_slimChainFile, FileMode.Create))
-                {
-                    _chain.Save(stream);
-                    Console.WriteLine($"Slimchain file saved to {stream.Name}");
-                }
-            }
-        }
-
-        static void SaveBlockTransactionsFile()
-        {
-            using (var stream = new FileStream(_blockTransactionsFile, FileMode.Create))
-            {
-                _blockTx.Save(stream);
-                Console.WriteLine($"BlockTransaction file saved to {stream.Name}");
-            }
-        }
-
+        
         static Task SyncSlimChain(Node node, CancellationToken cancellationToken)
         {
             var syncTask = Task.Factory.StartNew(async () =>

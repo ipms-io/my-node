@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using ZeroFormatter;
+using my_node.extensions;
 
 namespace my_node
 {
