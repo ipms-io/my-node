@@ -7,18 +7,47 @@ using System.Threading;
 using ZeroFormatter;
 using my_node.extensions;
 
-namespace my_node
+namespace my_node.storage
 {
-    public class BlockTransaction : IDictionary<uint256, Dictionary<uint256, bool>>
+    public class BlockTransactions : StorageBase, IDictionary<uint256, Dictionary<uint256, bool>>
     {
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
         private Dictionary<uint256, Dictionary<uint256, bool>> _blockTransaction;
 
-        public BlockTransaction()
+        public override string FileName => ".blockTransactions";
+
+        public BlockTransactions(string basePath = null)
+            : base(basePath)
         {
             _blockTransaction = new Dictionary<uint256, Dictionary<uint256, bool>>();
         }
 
+        public override bool Load()
+        {
+            if (File.Exists(FullPath))
+            {
+                using (var stream = new FileStream(FullPath, FileMode.Open))
+                using (_lock.LockWrite())
+                    _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, Dictionary<uint256, bool>>>(stream);
+                
+                return true;
+            }
+
+            return false;
+        }
+
+        public override void Save()
+        {
+            using (var stream = new FileStream(FullPath, FileMode.Create))
+            {
+                using (_lock.LockRead())
+                    ZeroFormatterSerializer.Serialize(stream, _blockTransaction);
+
+                Console.WriteLine($"BlockTransaction file saved to {stream.Name}");
+            }
+        }
+
+        #region Interface Implementation 
         public Dictionary<uint256, bool> this[uint256 key]
         {
             get
@@ -79,7 +108,8 @@ namespace my_node
 
         public void Add(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
         {
-            throw new NotImplementedException();
+            using (_lock.LockWrite())
+                _blockTransaction.Add(item.Key, item.Value);
         }
 
         public void Clear()
@@ -90,7 +120,11 @@ namespace my_node
 
         public bool Contains(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
         {
-            throw new NotImplementedException();
+            var containsItem = false;
+            using (_lock.LockRead())
+                containsItem = _blockTransaction.ContainsKey(item.Key) || _blockTransaction[item.Key] == item.Value;
+
+            return containsItem;
         }
 
         public bool ContainsKey(uint256 key)
@@ -116,14 +150,6 @@ namespace my_node
             return enumerator;
         }
 
-        public void Load(Stream input)
-        {
-            using (_lock.LockWrite())
-            {
-                _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, Dictionary<uint256, bool>>>(input);
-            }
-        }
-
         public bool Remove(uint256 key)
         {
             var remove = false;
@@ -135,21 +161,17 @@ namespace my_node
 
         public bool Remove(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
         {
-            throw new NotImplementedException();
-        }
+            var remove = false;
+            using (_lock.LockWrite())
+                remove = _blockTransaction.Remove(item.Key);
 
-        public void Save(Stream output)
-        {
-            using (_lock.LockRead())
-            {
-                ZeroFormatterSerializer.Serialize(output, _blockTransaction);
-            }
+            return remove;
         }
 
         public bool TryGetValue(uint256 key, out Dictionary<uint256, bool> value)
         {
             var tryGetValue = false;
-            using (_lock.LockWrite())
+            using (_lock.LockRead())
                 tryGetValue = _blockTransaction.TryGetValue(key, out value);
 
             return tryGetValue;
@@ -163,5 +185,6 @@ namespace my_node
 
             return enumerator;
         }
+        #endregion
     }
 }

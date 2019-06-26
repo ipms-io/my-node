@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 namespace my_node.storage
 {
@@ -8,6 +9,16 @@ namespace my_node.storage
         public string BitcoinPath = ".bitcoin";
 
         public abstract string FileName { get; }
+
+        public StorageBase(string basePath = null)
+        {
+            if (string.IsNullOrWhiteSpace(basePath))
+                basePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), BitcoinPath);
+
+            BasePath = basePath;
+
+            Directory.CreateDirectory(BasePath);
+        }
 
         public abstract bool Load();
         public abstract void Save();

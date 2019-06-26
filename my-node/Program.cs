@@ -7,15 +7,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using my_node.formatters;
-using my_node.extensions;
+using my_node.storage;
+
+using static my_node.extensions.ConsoleExtensions;
 
 namespace my_node
 {
     class Program
     {
-        private static SlimChain _chain;
-        private static BlockTransaction _blockTx;
-        private static Dictionary<uint256, Transaction> _txMap;
+        private static Blocks _blocks;
+        private static BlockTransactions _blockTransactions;
+        private static Transactions _transactions;
+        private static NodeManager _nodeManager;
         private static readonly string _path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".bitcoin");
         private static readonly string _slimChainFile = Path.Combine(_path, ".slimChain");
         private static readonly string _blockTransactionsFile = Path.Combine(_path, ".blockTransactions");
@@ -27,30 +30,23 @@ namespace my_node
         static async Task Main(string[] args)
         {
             RegisterFormatters.RegisterAll();
-            _txMap = new Dictionary<uint256, Transaction>();
+            _blocks = new Blocks();
+            _blockTransactions = new BlockTransactions();
+            _transactions = new Transactions();
+            _nodeManager = new NodeManager();
 
-            var addressManager = new AddressManager();
+            using (var node = _nodeManager.GetNode())
+                if (!_blocks.Load())
+                    await ConsoleWait(GetSlimChainAsync(node));
 
-            var dnsSeed = new DNSSeedData("sipa", "seed.bitcoin.sipa.be");
-            var ips = await dnsSeed.GetAddressNodesAsync(8333);
-            foreach (var ip in ips)
-                await addressManager.AddAsync(ip);
+            _blockTransactions.Load();
+            _transactions.Load();
 
-            Console.WriteLine("Connecting");
-            var node = Node.Connect(Network.Main, addressManager);
-            while (!node.IsConnected)
-                Thread.Sleep(100);
-
-            Console.WriteLine($"Connected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");
-
-            await LoadSlimChainFile(node);
-            LoadBlockTransactionFile();
-
-            //SyncSlimChain(node, _syncCancellationTokenSource.Token);
+            SyncSlimChain(_syncCancellationTokenSource.Token);
 
             SlimChainedBlock slimChainedBlock;
             lock (_syncLock)
-                slimChainedBlock = _chain.GetBlock(581180);
+                slimChainedBlock = _blocks.GetBlock(581180);
 
             var address = Bitcoin.Instance.Mainnet.CreateBitcoinAddress("38J8cCMJiERVKAN1W32g1CPVmniYymjJns");
 
@@ -60,26 +56,58 @@ namespace my_node
             Console.WriteLine("Press ENTER to exit");
             Console.ReadLine();
 
-            node.DisconnectAsync("stopping client");
-
             _syncCancellationTokenSource.Cancel();
-            SaveSlimChainFile();
-            SaveBlockTransactionsFile();
+            _blocks.Save();
+            _blockTransactions.Save();
+            _transactions.Save();
 
             Console.WriteLine("Good bye");
 
             Environment.Exit(1);
         }
-
-        private static void LoadBlockTransactionFile()
+        static Task GetSlimChainAsync(Node node)
         {
-            _blockTx = new BlockTransaction();
+            return Task.Run(() => { _blocks.SetChain(node.GetSlimChain()); });
+        }
 
-            if (File.Exists(_blockTransactionsFile))
+        static Task SyncSlimChainAsync(CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
             {
-                using (var stream = new FileStream(_blockTransactionsFile, FileMode.Open))
-                    _blockTx.Load(stream);
-            }
+                lock (_syncLock)
+                {
+                    using (var node = _nodeManager.GetNode())
+                    using (_blocks.LockWrite())
+                    {
+                        var chain = _blocks.GetChain();
+                        node.SynchronizeSlimChain(chain, cancellationToken: cancellationToken;
+                        _blocks.SetChain(chain);
+                    }
+                }
+            });
+        }
+
+        static Task SyncSlimChain(CancellationToken cancellationToken)
+        {
+            var syncTask = Task.Factory.StartNew(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    Console.WriteLine("Synchronizing chain...");
+
+                    await ConsoleWait(SyncSlimChainAsync(cancellationToken));
+
+                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(10));
+
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        Console.WriteLine("Sync cancelled!");
+                        break;
+                    }
+                }
+            }, cancellationToken);
+
+            return syncTask;
         }
 
         static Task BuildCoinChain(Node node, uint256 blockHash, OutPoint outPoint, BitcoinAddress address)
@@ -92,12 +120,12 @@ namespace my_node
                 Dictionary<uint256, bool> txMap = new Dictionary<uint256, bool>();
                 if (outPoint != null && outPoint.Hash != 0)
                 {
-                    var isTxKnown = _blockTx.FirstOrDefault(x => x.Value.ContainsKey(outPoint.Hash));
+                    var isTxKnown = _blockTransactions.FirstOrDefault(x => x.Value.ContainsKey(outPoint.Hash));
                     if (isTxKnown.Key != null)
                     {
                         blockHash = isTxKnown.Key;
                         // We already mapped this tx, return
-                        if (_blockTx[blockHash][outPoint.Hash])
+                        if (_blockTransactions[blockHash][outPoint.Hash])
                             return;
                     }
                 }
@@ -162,7 +190,7 @@ namespace my_node
 
                         if (found)
                         {
-                            _txMap.Add(tx.GetHash(), tx);
+                            _transactions.Add(tx.GetHash(), tx);
                             txMap.AddOrReplace(tx.GetHash(), true);
                         }
                         else
@@ -177,96 +205,8 @@ namespace my_node
                     await BuildCoinChain(node, block.Header.HashPrevBlock, outPoint, null);
                 }
 
-                _blockTx.AddOrReplace(blockHash, txMap);
+                _blockTransactions.AddOrReplace(blockHash, txMap);
             });
-        }
-
-        static Task GetSlimChainAsync(Node node)
-        {
-            return Task.Run(() => { _chain = node.GetSlimChain(); });
-        }
-
-        static Task SyncSlimChainAsync(Node node, CancellationToken cancellationToken)
-        {
-            return Task.Run(() =>
-            {
-                lock (_syncLock)
-                {
-                    node.SynchronizeSlimChain(_chain, cancellationToken: cancellationToken);
-                }
-            });
-        }
-
-        static void SaveBlockTransactionsFile()
-        {
-            using (var stream = new FileStream(_blockTransactionsFile, FileMode.Create))
-            {
-                _blockTx.Save(stream);
-                Console.WriteLine($"BlockTransaction file saved to {stream.Name}");
-            }
-        }
-
-        private async Task FirstSync(Node node)
-        {
-            Console.WriteLine("Downloading chain headers for the first time.");
-            Console.WriteLine("It may take a few minutes to finish. Be patient...");
-
-            await ConsoleWait(GetSlimChainAsync(node));
-
-            Console.WriteLine("Chain download complete.");
-
-            SaveSlimChainFile();
-        }
-        
-        static Task SyncSlimChain(Node node, CancellationToken cancellationToken)
-        {
-            var syncTask = Task.Factory.StartNew(async () =>
-            {
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    Console.WriteLine("Synchronizing chain...");
-
-                    await ConsoleWait(SyncSlimChainAsync(node, cancellationToken));
-
-                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(10));
-
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        Console.WriteLine("Sync cancelled!");
-                        break;
-                    }
-                }
-            }, cancellationToken);
-
-            return syncTask;
-        }
-
-        static Task ConsoleWait(Task task)
-        {
-            int count = 0;
-            while (!task.IsCompleted)
-            {
-                switch (count++ % 4)
-                {
-                    case 1:
-                        Console.Write("\rWait");
-                        break;
-                    case 2:
-                        Console.Write("\rWait.");
-                        break;
-                    case 3:
-                        Console.Write("\rWait..");
-                        break;
-                    case 4:
-                        Console.Write("\rWait...");
-                        break;
-                }
-                Thread.Sleep(100);
-            }
-
-            Console.Write("\r");
-
-            return task;
         }
     }
 }
