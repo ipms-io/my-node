@@ -7,7 +7,7 @@ namespace my_node
 {
     public class NodeManager
     {
-        private AddressManager _addressManager;
+        private readonly AddressManager _addressManager;
 
         public NodeManager()
         {
@@ -22,13 +22,23 @@ namespace my_node
         public Node GetNode()
         {
             Console.WriteLine("Connecting");
+            var state = NodeState.Offline;
+            var connectedFinal = false;
             var node = Node.Connect(Network.Main, _addressManager);
+            node.StateChanged += (thisNode, oldState) =>
+            {
+                if (state == NodeState.Connected && oldState == NodeState.HandShaked)
+                    connectedFinal = true;
+
+                state = oldState;
+                Console.WriteLine($"Peer {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port} stated changed to {oldState.ToString()}");
+            };
             node.Disconnected += (thisNode) =>
             {
-                Console.WriteLine($"Disconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason}");
-                thisNode.Dispose();
+                Console.WriteLine($"Disconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason.Reason}");
             };
-            while (!node.IsConnected)
+
+            while (node.State != NodeState.Connected)
                 Thread.Sleep(100);
 
             Console.WriteLine($"Connected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");

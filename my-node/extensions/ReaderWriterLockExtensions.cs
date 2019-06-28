@@ -19,9 +19,9 @@ namespace my_node.extensions
             _rwl = rwl;
             _type = type;
             if (_type == ReaderWriterLockType.READ)
-                _rwl.AcquireReaderLock(500);
+                _rwl.AcquireReaderLock(5000);
             else if (_type == ReaderWriterLockType.WRITE)
-                _rwl.AcquireWriterLock(500);
+                _rwl.AcquireWriterLock(5000);
         }
 
         public void Dispose()

@@ -52,7 +52,13 @@ namespace my_node.storage
 
         public SlimChainedBlock GetBlock(int heigth)
         {
-            return _chain.GetBlock(heigth);
+            SlimChainedBlock block = null;
+            using (_lock.LockRead())
+            {
+                block = _chain.GetBlock(heigth);
+            }
+
+            return block;
         }
 
         public ReaderWriterLockObject LockWrite()
@@ -62,7 +68,23 @@ namespace my_node.storage
 
         public SlimChain GetChain()
         {
-            return _chain;
+            SlimChain chain = null;
+            using (_lock.LockRead())
+                chain = _chain;
+
+            return chain;
+        }
+
+        internal uint256 GetPreviousBlockHash(uint256 blockHash)
+        {
+            uint256 prevBlockHash = null;
+            using (_lock.LockRead())
+            {
+                var block = _chain.GetBlock(blockHash);
+                prevBlockHash = block?.Previous;
+            }
+
+            return prevBlockHash;
         }
     }
 }

@@ -111,6 +111,19 @@ namespace my_node.storage
                 _transactions.Add(item.Key, item.Value);
         }
 
+        public bool TryAdd(uint256 key, Transaction item)
+        {
+            var exists = true;
+            using (_lock.LockRead())
+                exists = _transactions.ContainsKey(key);
+
+            if (exists)
+                return false;
+
+            _transactions.Add(key, item);
+            return true;
+        }
+
         public void Clear()
         {
             using (_lock.LockWrite())

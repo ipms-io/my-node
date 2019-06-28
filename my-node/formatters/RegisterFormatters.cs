@@ -8,6 +8,7 @@ namespace my_node.formatters
         public static void RegisterAll()
         {
             Formatter<DefaultResolver, uint256>.Register(new Uint256Formatter());
+            Formatter<DefaultResolver, Transaction>.Register(new TransactionFormatter());
         }
     }
 }
