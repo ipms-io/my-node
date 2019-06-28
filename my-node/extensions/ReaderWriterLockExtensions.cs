@@ -3,10 +3,11 @@ using System.Threading;
 
 namespace my_node.extensions
 {
-    public enum ReaderWriterLockType
+    [Flags]
+    public enum ReaderWriterLockType : short
     {
-        READ,
-        WRITE
+        READ = 1,
+        WRITE = 2
     }
 
     public class ReaderWriterLockObject : IDisposable
@@ -18,17 +19,20 @@ namespace my_node.extensions
         {
             _rwl = rwl;
             _type = type;
-            if (_type == ReaderWriterLockType.READ)
-                _rwl.AcquireReaderLock(5000);
-            else if (_type == ReaderWriterLockType.WRITE)
-                _rwl.AcquireWriterLock(5000);
+
+            if (_type.HasFlag(ReaderWriterLockType.READ))
+                _rwl.AcquireReaderLock(15000);
+
+            if (_type.HasFlag(ReaderWriterLockType.WRITE))
+                _rwl.AcquireWriterLock(15000);
         }
 
         public void Dispose()
         {
-            if (_type == ReaderWriterLockType.READ)
+            if (_type.HasFlag(ReaderWriterLockType.READ))
                 _rwl.ReleaseReaderLock();
-            else if (_type == ReaderWriterLockType.WRITE)
+
+            if (_type.HasFlag(ReaderWriterLockType.WRITE))
                 _rwl.ReleaseWriterLock();
         }
     }

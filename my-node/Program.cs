@@ -40,14 +40,14 @@ namespace my_node
             Thread.Sleep(10000);
             SlimChainedBlock slimChainedBlock;
             lock (_syncLock)
-                slimChainedBlock = _blocks.GetBlock(581180);
+                slimChainedBlock = _blocks.GetBlock(581169);
 
             var address = Bitcoin.Instance.Mainnet.CreateBitcoinAddress("38J8cCMJiERVKAN1W32g1CPVmniYymjJns");
 
             Console.WriteLine($"Assembling chain for address {address} starting on block 581180");
 
             coinHistoryBuilder.Start();
-            await coinHistoryBuilder.BuildCoinHistory(new Search { BlockHash = slimChainedBlock.Hash, Address = address });
+            await coinHistoryBuilder.BuildCoinHistory(new Search { BlockHash = slimChainedBlock.Hash });
 
             Console.WriteLine("Press ENTER to exit");
             Console.ReadLine();

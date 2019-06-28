@@ -9,17 +9,17 @@ using my_node.extensions;
 
 namespace my_node.storage
 {
-    public class BlockTransactions : StorageBase, IDictionary<uint256, Dictionary<uint256, bool>>
+    public class BlockTransactions : StorageBase, IDictionary<uint256, HashSet<uint256>>
     {
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
-        private Dictionary<uint256, Dictionary<uint256, bool>> _blockTransaction;
+        private Dictionary<uint256, HashSet<uint256>> _blockTransaction;
 
         public override string FileName => ".blockTransactions";
 
         public BlockTransactions(string basePath = null)
             : base(basePath)
         {
-            _blockTransaction = new Dictionary<uint256, Dictionary<uint256, bool>>();
+            _blockTransaction = new Dictionary<uint256, HashSet<uint256>>();
         }
 
         public override bool Load()
@@ -28,8 +28,8 @@ namespace my_node.storage
             {
                 using (var stream = new FileStream(FullPath, FileMode.Open))
                 using (_lock.LockWrite())
-                    _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, Dictionary<uint256, bool>>>(stream);
-                
+                    _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, HashSet<uint256>>>(stream);
+
                 return true;
             }
 
@@ -47,8 +47,27 @@ namespace my_node.storage
             }
         }
 
+        public bool TryAdd(uint256 blockHash, uint256 transactionHash)
+        {
+            var added = false;
+            using (_lock.LockWrite())
+            {
+                if (_blockTransaction.TryGetValue(blockHash, out HashSet<uint256> transactions))
+                {
+                    if (!transactions.Contains(transactionHash))
+                    {
+                        transactions.Add(transactionHash);
+                        _blockTransaction[blockHash] = transactions;
+                        added = true;
+                    }                        
+                }
+            }
+
+            return added;
+        }
+
         #region Interface Implementation 
-        public Dictionary<uint256, bool> this[uint256 key]
+        public HashSet<uint256> this[uint256 key]
         {
             get
             {
@@ -74,11 +93,11 @@ namespace my_node.storage
             }
         }
 
-        public ICollection<Dictionary<uint256, bool>> Values
+        public ICollection<HashSet<uint256>> Values
         {
             get
             {
-                ICollection<Dictionary<uint256, bool>> values = null;
+                ICollection<HashSet<uint256>> values = null;
                 using (_lock.LockRead())
                     values = _blockTransaction.Values;
 
@@ -100,13 +119,13 @@ namespace my_node.storage
 
         public bool IsReadOnly => false;
 
-        public void Add(uint256 key, Dictionary<uint256, bool> value)
+        public void Add(uint256 key, HashSet<uint256> value)
         {
             using (_lock.LockWrite())
                 _blockTransaction.Add(key, value);
         }
 
-        public void Add(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
+        public void Add(KeyValuePair<uint256, HashSet<uint256>> item)
         {
             using (_lock.LockWrite())
                 _blockTransaction.Add(item.Key, item.Value);
@@ -118,7 +137,7 @@ namespace my_node.storage
                 _blockTransaction.Clear();
         }
 
-        public bool Contains(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
+        public bool Contains(KeyValuePair<uint256, HashSet<uint256>> item)
         {
             var containsItem = false;
             using (_lock.LockRead())
@@ -136,14 +155,14 @@ namespace my_node.storage
             return containsKey;
         }
 
-        public void CopyTo(KeyValuePair<uint256, Dictionary<uint256, bool>>[] array, int arrayIndex)
+        public void CopyTo(KeyValuePair<uint256, HashSet<uint256>>[] array, int arrayIndex)
         {
             throw new NotImplementedException();
         }
 
-        public IEnumerator<KeyValuePair<uint256, Dictionary<uint256, bool>>> GetEnumerator()
+        public IEnumerator<KeyValuePair<uint256, HashSet<uint256>>> GetEnumerator()
         {
-            IEnumerator<KeyValuePair<uint256, Dictionary<uint256, bool>>> enumerator = null;
+            IEnumerator<KeyValuePair<uint256, HashSet<uint256>>> enumerator = null;
             using (_lock.LockRead())
                 enumerator = _blockTransaction.GetEnumerator();
 
@@ -159,7 +178,7 @@ namespace my_node.storage
             return remove;
         }
 
-        public bool Remove(KeyValuePair<uint256, Dictionary<uint256, bool>> item)
+        public bool Remove(KeyValuePair<uint256, HashSet<uint256>> item)
         {
             var remove = false;
             using (_lock.LockWrite())
@@ -168,7 +187,7 @@ namespace my_node.storage
             return remove;
         }
 
-        public bool TryGetValue(uint256 key, out Dictionary<uint256, bool> value)
+        public bool TryGetValue(uint256 key, out HashSet<uint256> value)
         {
             var tryGetValue = false;
             using (_lock.LockRead())
@@ -179,7 +198,7 @@ namespace my_node.storage
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            IEnumerator<KeyValuePair<uint256, Dictionary<uint256, bool>>> enumerator = null;
+            IEnumerator<KeyValuePair<uint256, HashSet<uint256>>> enumerator = null;
             using (_lock.LockRead())
                 enumerator = _blockTransaction.GetEnumerator();
 
