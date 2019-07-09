@@ -5,8 +5,8 @@ namespace my_node.extensions
 {
     public enum ReaderWriterLockType
     {
-        READ,
-        WRITE
+        Read,
+        Write
     }
 
     public class ReaderWriterLockObject : IDisposable
@@ -18,17 +18,17 @@ namespace my_node.extensions
         {
             _rwl = rwl;
             _type = type;
-            if (_type == ReaderWriterLockType.READ)
-                _rwl.AcquireReaderLock(5000);
-            else if (_type == ReaderWriterLockType.WRITE)
-                _rwl.AcquireWriterLock(5000);
+            if (_type == ReaderWriterLockType.Read)
+                _rwl.AcquireReaderLock(TimeSpan.FromMinutes(1));
+            else if (_type == ReaderWriterLockType.Write)
+                _rwl.AcquireWriterLock(TimeSpan.FromMinutes(1));
         }
 
         public void Dispose()
         {
-            if (_type == ReaderWriterLockType.READ)
+            if (_type == ReaderWriterLockType.Read)
                 _rwl.ReleaseReaderLock();
-            else if (_type == ReaderWriterLockType.WRITE)
+            else if (_type == ReaderWriterLockType.Write)
                 _rwl.ReleaseWriterLock();
         }
     }
@@ -37,12 +37,12 @@ namespace my_node.extensions
     {
         public static ReaderWriterLockObject LockRead(this ReaderWriterLock rwl)
         {
-            return new ReaderWriterLockObject(rwl, ReaderWriterLockType.READ);
+            return new ReaderWriterLockObject(rwl, ReaderWriterLockType.Read);
         }
 
         public static ReaderWriterLockObject LockWrite(this ReaderWriterLock rwl)
         {
-            return new ReaderWriterLockObject(rwl, ReaderWriterLockType.WRITE);
+            return new ReaderWriterLockObject(rwl, ReaderWriterLockType.Write);
         }
     }
 }

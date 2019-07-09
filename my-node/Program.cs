@@ -4,6 +4,8 @@ using my_node.storage;
 using NBitcoin;
 using NBitcoin.Protocol;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using static my_node.extensions.ConsoleExtensions;
@@ -36,18 +38,20 @@ namespace my_node
             _transactions.Load();
 
             SyncSlimChain(_syncCancellationTokenSource.Token);
-
             Thread.Sleep(10000);
-            SlimChainedBlock slimChainedBlock;
-            lock (_syncLock)
-                slimChainedBlock = _blocks.GetBlock(581180);
 
-            var address = Bitcoin.Instance.Mainnet.CreateBitcoinAddress("38J8cCMJiERVKAN1W32g1CPVmniYymjJns");
+            CheckLastSyncedBlock(_syncCancellationTokenSource.Token);
 
-            Console.WriteLine($"Assembling chain for address {address} starting on block 581180");
+            //SlimChainedBlock slimChainedBlock;
+            //lock (_syncLock)
+            //    slimChainedBlock = _blocks.GetBlock(581180);
 
-            coinHistoryBuilder.Start();
-            await coinHistoryBuilder.BuildCoinHistory(new Search { BlockHash = slimChainedBlock.Hash, Address = address });
+            //var address = Bitcoin.Instance.Mainnet.CreateBitcoinAddress("38J8cCMJiERVKAN1W32g1CPVmniYymjJns");
+
+            //Console.WriteLine($"Assembling chain for address {address} starting on block 581180");
+
+            //coinHistoryBuilder.Start();
+            //await coinHistoryBuilder.BuildCoinHistory(new Search { BlockHash = slimChainedBlock.Hash, Address = address });
 
             Console.WriteLine("Press ENTER to exit");
             Console.ReadLine();
@@ -62,6 +66,64 @@ namespace my_node
 
             Environment.Exit(1);
         }
+
+        static Task CheckLastSyncedBlock(CancellationToken cancelationToken)
+        {
+            return Task.Run(() =>
+            {
+                var tip = _blocks.GetTip();
+                var blocksToSync = new List<uint256>();
+
+                while (!_blockTransactions.ContainsKey((tip.Hash)))
+                {
+                    blocksToSync.Add(tip.Hash);
+
+                    if (tip.Previous == null)
+                        break;
+
+                    tip = _blocks.GetBlock(tip.Previous);
+                }
+
+                Console.WriteLine($"Getting {blocksToSync.Count} blocks");
+                var node = _nodeManager.GetNode();
+                var blocks = node.GetBlocks(blocksToSync);
+
+                var semaphore = new SemaphoreSlim(10);
+                var count = 1;
+                foreach (var block in blocks)
+                {
+                    Console.Write($"\r{Math.Round((decimal)count++ / blocksToSync.Count, 5, MidpointRounding.AwayFromZero)}%");
+                    semaphore.Wait(cancelationToken);
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            SaveTransactionsFromBlock(block, semaphore);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"ERROR: {e}");
+                            node = _nodeManager.GetNode();
+                        }
+
+                    }, cancelationToken);
+                }
+
+            }, cancelationToken);
+        }
+
+        static void SaveTransactionsFromBlock(Block block, SemaphoreSlim semaphore)
+        {
+            var transactions = new Dictionary<uint256, bool>();
+
+            foreach (var blockTransaction in block.Transactions)
+                transactions.Add(blockTransaction.GetHash(), false);
+
+            _blockTransactions.Add(block.GetHash(), transactions);
+
+            semaphore.Release();
+        }
+
         static Task GetSlimChainAsync(Node node)
         {
             return Task.Run(() => { _blocks.SetChain(node.GetSlimChain()); });
@@ -90,10 +152,10 @@ namespace my_node
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"ERROR: {ex.ToString()}");
-                    SyncSlimChain(cancellationToken).Wait();
+                    Console.WriteLine($"ERROR: {ex}");
+                    SyncSlimChain(cancellationToken).Wait(cancellationToken);
                 }
-            });
+            }, cancellationToken);
         }
 
         static Task SyncSlimChain(CancellationToken cancellationToken)

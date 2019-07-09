@@ -21,16 +21,15 @@ namespace my_node.storage
 
         public override bool Load()
         {
-            if (File.Exists(FullPath))
-            {
-                using (var stream = new FileStream(FullPath, FileMode.Open))
-                using (_lock.LockWrite())
-                    _chain.Load(stream);
+            if (!File.Exists(FullPath))
+                return false;
 
-                return true;
-            }
+            using (var stream = new FileStream(FullPath, FileMode.Open))
+            using (_lock.LockWrite())
+                _chain.Load(stream);
 
-            return false;
+            return true;
+
         }
 
         public override void Save()
@@ -38,9 +37,8 @@ namespace my_node.storage
             using (var stream = new FileStream(FullPath, FileMode.Create))
             {
                 using (_lock.LockRead())
-                {
                     _chain.Save(stream);
-                }
+
                 Console.WriteLine($"Slimchain file saved to {stream.Name}");
             }
         }
@@ -54,9 +52,15 @@ namespace my_node.storage
         {
             SlimChainedBlock block = null;
             using (_lock.LockRead())
-            {
                 block = _chain.GetBlock(heigth);
-            }
+
+            return block;
+        }
+        public SlimChainedBlock GetBlock(uint256 hash)
+        {
+            SlimChainedBlock block = null;
+            using (_lock.LockRead())
+                block = _chain.GetBlock(hash);
 
             return block;
         }
@@ -73,6 +77,24 @@ namespace my_node.storage
                 chain = _chain;
 
             return chain;
+        }
+
+        //public int GetChainHeight()
+        //{
+        //    var heigth = 0;
+        //    using (_lock.LockRead())
+        //        heigth = _chain.Height;
+
+        //    return heigth;
+        //}
+
+        public SlimChainedBlock GetTip()
+        {
+            SlimChainedBlock tip = null;
+            using (_lock.LockRead())
+                tip = _chain.TipBlock;
+
+            return tip;
         }
 
         internal uint256 GetPreviousBlockHash(uint256 blockHash)

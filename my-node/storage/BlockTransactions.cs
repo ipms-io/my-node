@@ -24,16 +24,15 @@ namespace my_node.storage
 
         public override bool Load()
         {
-            if (File.Exists(FullPath))
-            {
-                using (var stream = new FileStream(FullPath, FileMode.Open))
-                using (_lock.LockWrite())
-                    _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, Dictionary<uint256, bool>>>(stream);
-                
-                return true;
-            }
+            if (!File.Exists(FullPath))
+                return false;
 
-            return false;
+            using (var stream = new FileStream(FullPath, FileMode.Open))
+            using (_lock.LockWrite())
+                _blockTransaction = ZeroFormatterSerializer.Deserialize<Dictionary<uint256, Dictionary<uint256, bool>>>(stream);
+                
+            return true;
+
         }
 
         public override void Save()
@@ -90,7 +89,7 @@ namespace my_node.storage
         {
             get
             {
-                int count = 0;
+                var count = 0;
                 using (_lock.LockRead())
                     count = _blockTransaction.Count;
 

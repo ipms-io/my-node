@@ -201,14 +201,8 @@ namespace my_node
         private Block GetBlock(uint256 blockHash)
         {
             Console.WriteLine($"Looking for transactions in block 0x{blockHash}");
-            Block block = null;
-            //using (var node = _nodeManager.GetNode())
-            //{
             var blocks = _node.GetBlocks(new List<uint256> { blockHash });
-            block = blocks.FirstOrDefault();
-            //}
-
-            return block;
+            return blocks.FirstOrDefault();
         }
     }
 }
