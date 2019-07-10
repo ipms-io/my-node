@@ -59,6 +59,8 @@ namespace my_node.storage
 
         public void Sync(Blocks blocks, NodeManager nodeManager, CancellationToken cancelationToken)
         {
+            blocks.OnSyncFinished += (source, e) => { Save(); };
+
             Task.Run(async () =>
             {
                 var tip = blocks.GetTip();
@@ -73,6 +75,7 @@ namespace my_node.storage
 
                     tip = blocks.GetBlock(tip.Previous);
                 }
+
                 blocksToSync.Reverse();
 
                 Console.WriteLine($"\rGetting {blocksToSync.Count} blocks");
@@ -81,13 +84,14 @@ namespace my_node.storage
                     nodes.Enqueue(nodeManager.GetNode());
 
                 var syncQueue = new ConcurrentQueue<uint256>(blocksToSync);
-                
+
                 var count = 1;
                 while (!syncQueue.IsEmpty)
                 {
                     await blocks.WaitSync();
 
-                    Console.Write($"\rSyncing: {Math.Round((decimal)count++ / blocksToSync.Count, 5, MidpointRounding.AwayFromZero)}%");
+                    Console.Write(
+                        $"\rSyncing: {Math.Round((decimal)count++ / blocksToSync.Count, 5, MidpointRounding.AwayFromZero)}%");
                     _semaphore.Wait(cancelationToken);
                     var count1 = count;
                     ThreadPool.QueueUserWorkItem(_ =>

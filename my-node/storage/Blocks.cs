@@ -8,13 +8,17 @@ using static my_node.extensions.ConsoleExtensions;
 
 namespace my_node.storage
 {
+    public delegate void SyncFinishedHandler(object source, EventArgs e);
+
     public class Blocks : StorageBase
     {
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
         private SlimChain _chain;
         private bool _syncing;
-
+        
         public override string FileName => ".blocks";
+
+        public event SyncFinishedHandler OnSyncFinished;
 
         public Blocks(string basePath = null)
             : base(basePath)
@@ -43,9 +47,8 @@ namespace my_node.storage
                         node.SynchronizeSlimChain(_chain, cancellationToken: cancellationToken);
 
                     Save();
-                    // TODO: Call save event
-                    //_blockTransactions.Save();
-                    //_transactions.Save();
+                    OnSyncFinished?.Invoke(this, new EventArgs());
+                    // TODO: Sign event on transactions
 
                     _syncing = false;
                 }
@@ -67,7 +70,7 @@ namespace my_node.storage
 
                     await ConsoleWait(SyncSlimChainAsync(nodeManager, cancellationToken));
                     
-                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(2));
+                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(5));
 
                     if (!cancellationToken.IsCancellationRequested)
                         continue;
