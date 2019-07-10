@@ -45,9 +45,6 @@ namespace my_node.storage
 
         public override void Save()
         {
-            while (_semaphore.CurrentCount < _syncThreads - 1)
-                Thread.Yield();
-
             using (var stream = new FileStream(FullPath, FileMode.Create))
             {
                 using (_lock.LockRead())
@@ -66,15 +63,16 @@ namespace my_node.storage
                 var tip = blocks.GetTip();
                 var blocksToSync = new List<uint256>();
 
-                while (!_blockTransactions.ContainsKey((tip.Hash)))
-                {
-                    blocksToSync.Add(tip.Hash);
+                using (_lock.LockRead())
+                    while (!_blockTransactions.ContainsKey((tip.Hash)))
+                    {
+                        blocksToSync.Add(tip.Hash);
 
-                    if (tip.Previous == null)
-                        break;
+                        if (tip.Previous == null)
+                            break;
 
-                    tip = blocks.GetBlock(tip.Previous);
-                }
+                        tip = blocks.GetBlock(tip.Previous);
+                    }
 
                 blocksToSync.Reverse();
 
@@ -109,7 +107,8 @@ namespace my_node.storage
                             foreach (var blockTransaction in block.Transactions)
                                 transactions.Add(blockTransaction.GetHash(), false);
 
-                            _blockTransactions.Add(block.GetHash(), transactions);
+                            using (_lock.LockWrite())
+                                _blockTransactions.Add(block.GetHash(), transactions);
                         }
                         catch (Exception e)
                         {
