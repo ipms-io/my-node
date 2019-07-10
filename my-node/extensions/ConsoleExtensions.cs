@@ -8,24 +8,18 @@ namespace my_node.extensions
     {
         public static Task ConsoleWait(Task task)
         {
-            int count = 0;
+            var count = 0;
             while (!task.IsCompleted)
             {
-                switch (count++ % 4)
-                {
-                    case 1:
-                        Console.Write("\rWait");
-                        break;
-                    case 2:
-                        Console.Write("\rWait.");
-                        break;
-                    case 3:
-                        Console.Write("\rWait..");
-                        break;
-                    case 4:
-                        Console.Write("\rWait...");
-                        break;
-                }
+                if (count++ % 4 == 1)
+                    Console.Write("\rWait");
+                else if (count++ % 4 == 2)
+                    Console.Write("\rWait.");
+                else if (count++ % 4 == 3)
+                    Console.Write("\rWait..");
+                else if (count++ % 4 == 4)
+                    Console.Write("\rWait...");
+
                 Thread.Sleep(100);
             }
 

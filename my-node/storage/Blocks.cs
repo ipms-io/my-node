@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using NBitcoin;
 using my_node.extensions;
+using static my_node.extensions.ConsoleExtensions;
 
 namespace my_node.storage
 {
@@ -10,6 +12,7 @@ namespace my_node.storage
     {
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
         private SlimChain _chain;
+        private bool _syncing;
 
         public override string FileName => ".blocks";
 
@@ -17,6 +20,62 @@ namespace my_node.storage
             : base(basePath)
         {
             _chain = new SlimChain(Network.Main.GenesisHash);
+        }
+
+        public Task WaitSync()
+        {
+            while (_syncing)
+                Thread.Yield();
+
+            return Task.CompletedTask;
+        }
+
+        public Task SyncSlimChainAsync(NodeManager nodeManager, CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    _syncing = true;
+
+                    using (var node = nodeManager.GetNode())
+                    using (_lock.LockWrite())
+                        node.SynchronizeSlimChain(_chain, cancellationToken: cancellationToken);
+
+                    Save();
+                    // TODO: Call save event
+                    //_blockTransactions.Save();
+                    //_transactions.Save();
+
+                    _syncing = false;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\rERROR: {ex}");
+                    SyncSlimChain(nodeManager, cancellationToken);
+                }
+            }, cancellationToken);
+        }
+
+        public void SyncSlimChain(NodeManager nodeManager, CancellationToken cancellationToken)
+        {
+            Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    Console.WriteLine("\rSynchronizing chain...");
+
+                    await ConsoleWait(SyncSlimChainAsync(nodeManager, cancellationToken));
+                    
+                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(2));
+
+                    if (!cancellationToken.IsCancellationRequested)
+                        continue;
+
+                    Console.WriteLine("\rSync cancelled!");
+                    break;
+                }
+            }, cancellationToken);
         }
 
         public override bool Load()
@@ -39,7 +98,7 @@ namespace my_node.storage
                 using (_lock.LockRead())
                     _chain.Save(stream);
 
-                Console.WriteLine($"Slimchain file saved to {stream.Name}");
+                Console.WriteLine($"\rSlimchain file saved to {stream.Name}");
             }
         }
 

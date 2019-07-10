@@ -42,7 +42,7 @@ namespace my_node.storage
                 using (_lock.LockRead())
                     ZeroFormatterSerializer.Serialize(stream, _transactions);
 
-                Console.WriteLine($"BlockTransaction file saved to {stream.Name}");
+                Console.WriteLine($"\rTransaction file saved to {stream.Name}");
             }
         }
 

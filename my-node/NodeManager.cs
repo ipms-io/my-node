@@ -21,27 +21,21 @@ namespace my_node
 
         public Node GetNode()
         {
-            Console.WriteLine("Connecting");
-            var state = NodeState.Offline;
-            var connectedFinal = false;
+            Console.WriteLine("\rConnecting to peer");
             var node = Node.Connect(Network.Main, _addressManager);
-            node.StateChanged += (thisNode, oldState) =>
-            {
-                if (state == NodeState.Connected && oldState == NodeState.HandShaked)
-                    connectedFinal = true;
-
-                state = oldState;
-                Console.WriteLine($"Peer {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port} stated changed to {oldState.ToString()}");
-            };
             node.Disconnected += (thisNode) =>
             {
-                Console.WriteLine($"Disconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason.Reason}");
+                if (thisNode.DisconnectReason.Exception == null)
+                    return;
+
+                Console.WriteLine($"\rDisconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason.Reason}");
+                node = Node.Connect(Network.Main, _addressManager);
             };
 
             while (node.State != NodeState.Connected)
                 Thread.Sleep(100);
 
-            Console.WriteLine($"Connected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");
+            Console.WriteLine($"\rConnected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");
 
             return node;
         }

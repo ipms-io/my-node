@@ -10,7 +10,7 @@ namespace my_node.storage
 
         public abstract string FileName { get; }
 
-        public StorageBase(string basePath = null)
+        protected StorageBase(string basePath = null)
         {
             if (string.IsNullOrWhiteSpace(basePath))
                 basePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), BitcoinPath);
