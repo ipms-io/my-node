@@ -17,7 +17,8 @@ namespace my_node.storage
     {
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
         private Dictionary<uint256, Dictionary<uint256, bool>> _blockTransactions;
-        private bool _isSyncing;
+        private readonly SemaphoreSlim _semaphore;
+        private readonly int _syncThreads;
 
         public override string FileName => ".blockTransactions";
 
@@ -25,6 +26,8 @@ namespace my_node.storage
             : base(basePath)
         {
             _blockTransactions = new Dictionary<uint256, Dictionary<uint256, bool>>();
+            _syncThreads = 16;
+            _semaphore = new SemaphoreSlim(_syncThreads);
         }
 
         public override bool Load()
@@ -42,7 +45,7 @@ namespace my_node.storage
 
         public override void Save()
         {
-            while (_isSyncing)
+            while (_semaphore.CurrentCount < _syncThreads - 1)
                 Thread.Yield();
 
             using (var stream = new FileStream(FullPath, FileMode.Create))
@@ -56,8 +59,6 @@ namespace my_node.storage
 
         public void Sync(Blocks blocks, NodeManager nodeManager, CancellationToken cancelationToken)
         {
-            var threadCount = 16;
-
             Task.Run(async () =>
             {
                 var tip = blocks.GetTip();
@@ -76,19 +77,18 @@ namespace my_node.storage
 
                 Console.WriteLine($"\rGetting {blocksToSync.Count} blocks");
                 var nodes = new ConcurrentQueue<Node>();
-                for (var i = 0; i < threadCount * 2; i++)
+                for (var i = 0; i < _syncThreads * 1.5; i++)
                     nodes.Enqueue(nodeManager.GetNode());
 
                 var syncQueue = new ConcurrentQueue<uint256>(blocksToSync);
-
-                var semaphore = new SemaphoreSlim(threadCount);
+                
                 var count = 1;
                 while (!syncQueue.IsEmpty)
                 {
                     await blocks.WaitSync();
 
                     Console.Write($"\rSyncing: {Math.Round((decimal)count++ / blocksToSync.Count, 5, MidpointRounding.AwayFromZero)}%");
-                    semaphore.Wait(cancelationToken);
+                    _semaphore.Wait(cancelationToken);
                     var count1 = count;
                     ThreadPool.QueueUserWorkItem(_ =>
                     {
@@ -116,14 +116,11 @@ namespace my_node.storage
                         finally
                         {
                             nodes.Enqueue(node);
-                            semaphore.Release();
+                            _semaphore.Release();
                         }
 
                     }, cancelationToken);
                 }
-
-                _isSyncing = false;
-
             }, cancelationToken);
         }
 
