@@ -21,21 +21,21 @@ namespace my_node
 
         public Node GetNode()
         {
-            Console.WriteLine("\rConnecting to peer");
+            //Console.WriteLine("\rConnecting to peer");
             var node = Node.Connect(Network.Main, _addressManager);
-            node.Disconnected += (thisNode) =>
-            {
-                if (thisNode.DisconnectReason.Exception == null)
-                    return;
+            //node.Disconnected += (thisNode) =>
+            //{
+            //    if (thisNode.DisconnectReason.Exception == null)
+            //        return;
 
-                Console.WriteLine($"\rDisconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason.Reason}");
-                node = Node.Connect(Network.Main, _addressManager);
-            };
+            //    Console.WriteLine($"\rDisconnected from: {thisNode.Peer.Endpoint.Address}:{thisNode.Peer.Endpoint.Port}. Reason: {thisNode.DisconnectReason.Reason}");
+            //    node = Node.Connect(Network.Main, _addressManager);
+            //};
 
             while (node.State != NodeState.Connected)
                 Thread.Sleep(100);
 
-            Console.WriteLine($"\rConnected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");
+            //Console.WriteLine($"\rConnected to: {node.Peer.Endpoint.Address}:{node.Peer.Endpoint.Port}");
 
             return node;
         }

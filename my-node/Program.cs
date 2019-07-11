@@ -2,9 +2,15 @@
 using my_node.storage;
 using NBitcoin.Protocol;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using my_node.models;
+using NBitcoin;
 using static my_node.extensions.ConsoleExtensions;
+using Block = my_node.models.Block;
+using Transaction = my_node.models.Transaction;
 
 namespace my_node
 {
@@ -12,29 +18,26 @@ namespace my_node
     {
         private static Blocks _blocks;
         private static BlockTransactions _blockTransactions;
-        private static Transactions _transactions;
         private static NodeManager _nodeManager;
         private static readonly CancellationTokenSource _syncCancellationTokenSource = new CancellationTokenSource();
 
         static async Task Main(string[] args)
         {
-            RegisterFormatters.RegisterAll();
-            _blocks = new Blocks();
-            _blockTransactions = new BlockTransactions();
-            _transactions = new Transactions();
-            _nodeManager = new NodeManager();
-            var coinHistoryBuilder = new CoinHistoryBuilder(_blocks, _blockTransactions, _transactions, _nodeManager);
+            var context = new Context();
 
-            using (var node = _nodeManager.GetNode())
-                if (!_blocks.Load())
+            RegisterFormatters.RegisterAll();
+            _blocks = new Blocks(context);
+            _blockTransactions = new BlockTransactions(context);
+            //_transactions = new Transactions();
+            _nodeManager = new NodeManager();
+
+            if (!_blocks.Load())
+                using (var node = _nodeManager.GetNode())
                     await ConsoleWait(GetSlimChainAsync(node));
 
-            _blockTransactions.Load();
-            _transactions.Load();
-
             _blocks.SyncSlimChain(_nodeManager, _syncCancellationTokenSource.Token);
-            await _blocks.WaitSync();
-            
+            await ConsoleWait(_blocks.WaitSync());
+
             _blockTransactions.Sync(_blocks, _nodeManager, _syncCancellationTokenSource.Token);
 
             //SlimChainedBlock slimChainedBlock;
@@ -52,16 +55,16 @@ namespace my_node
             Console.ReadLine();
 
             _syncCancellationTokenSource.Cancel();
-            coinHistoryBuilder.Stop();
-            _blocks.Save();
-            _blockTransactions.Save();
-            _transactions.Save();
+            //coinHistoryBuilder.Stop();
+            //_blocks.Save();
+            //_blockTransactions.Save();
+            //_transactions.Save();
 
             Console.WriteLine("\rGood bye");
 
             Environment.Exit(1);
         }
-        
+
         static Task GetSlimChainAsync(Node node)
         {
             return Task.Run(() => { _blocks.SetChain(node.GetSlimChain()); });

@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Block = NBitcoin.Block;
+using Transaction = NBitcoin.Transaction;
 
 namespace my_node
 {
@@ -68,37 +70,37 @@ namespace my_node
 
                 if (search.OutPoint != null && search.OutPoint.Hash != 0)
                 {
-                    var knownBlock = _blockTransactions.FirstOrDefault(x => x.Value.ContainsKey(search.OutPoint.Hash));
-                    if (knownBlock.Key != null)
-                    {
-                        // We already mapped this tx
-                        if (_blockTransactions[knownBlock.Key][search.OutPoint.Hash])
-                        {
-                            if (_transactions.TryGetValue(search.OutPoint.Hash, out Transaction tx))
-                            {
-                                if (tx.IsCoinBase)
-                                {
-                                    Console.WriteLine("Found coinbase!");
-                                    return Task.FromResult(true);
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"Tx already mapped, going deeper on {tx.Inputs.Count} inputs...");
-                                    foreach (var txIn in tx.Inputs)
-                                    {
-                                        var blockHash = _blocks.GetPreviousBlockHash(knownBlock.Key);
-                                        knownBlock = GetKnownBlockFromTransactionHash(txIn.PrevOut.Hash);
-                                        if (knownBlock.Key != null)
-                                            blockHash = knownBlock.Key;
+                    //var knownBlock = _blockTransactions.FirstOrDefault(x => x.Value.ContainsKey(search.OutPoint.Hash));
+                    //if (knownBlock.Key != null)
+                    //{
+                    //    // We already mapped this tx
+                    //    if (_blockTransactions[knownBlock.Key][search.OutPoint.Hash])
+                    //    {
+                    //        if (_transactions.TryGetValue(search.OutPoint.Hash, out Transaction tx))
+                    //        {
+                    //            if (tx.IsCoinBase)
+                    //            {
+                    //                Console.WriteLine("Found coinbase!");
+                    //                return Task.FromResult(true);
+                    //            }
+                    //            else
+                    //            {
+                    //                Console.WriteLine($"Tx already mapped, going deeper on {tx.Inputs.Count} inputs...");
+                    //                foreach (var txIn in tx.Inputs)
+                    //                {
+                    //                    var blockHash = _blocks.GetPreviousBlockHash(knownBlock.Key);
+                    //                    knownBlock = GetKnownBlockFromTransactionHash(txIn.PrevOut.Hash);
+                    //                    if (knownBlock.Key != null)
+                    //                        blockHash = knownBlock.Key;
 
-                                        _queue.Enqueue(new Search { BlockHash = blockHash, OutPoint = txIn.PrevOut });
-                                    }
+                    //                    _queue.Enqueue(new Search { BlockHash = blockHash, OutPoint = txIn.PrevOut });
+                    //                }
 
-                                    return Task.FromResult(true);
-                                }
-                            }
-                        }
-                    }
+                    //                return Task.FromResult(true);
+                    //            }
+                    //        }
+                    //    }
+                    //}
                 }
 
                 block = GetBlock(search.BlockHash);
@@ -179,7 +181,7 @@ namespace my_node
                     _queue.Enqueue(new Search { BlockHash = block.Header.HashPrevBlock, OutPoint = search.OutPoint });
                 }
 
-                _blockTransactions.AddOrReplace(search.BlockHash, txMap);
+                //_blockTransactions.AddOrReplace(search.BlockHash, txMap);
                 return Task.FromResult(true);
             }
             catch (Exception ex)
@@ -195,7 +197,8 @@ namespace my_node
 
         private KeyValuePair<uint256, Dictionary<uint256, bool>> GetKnownBlockFromTransactionHash(uint256 txHash)
         {
-            return _blockTransactions.FirstOrDefault(x => x.Value.ContainsKey(txHash));
+            throw new NotImplementedException();
+            //return _blockTransactions.FirstOrDefault(x => x.Value.ContainsKey(txHash));
         }
 
         private Block GetBlock(uint256 blockHash)

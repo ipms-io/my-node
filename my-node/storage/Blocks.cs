@@ -1,10 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using NBitcoin;
 using my_node.extensions;
+using my_node.models;
+using NBitcoin.Protocol;
 using static my_node.extensions.ConsoleExtensions;
+using Block = my_node.models.Block;
 
 namespace my_node.storage
 {
@@ -12,17 +19,19 @@ namespace my_node.storage
 
     public class Blocks : StorageBase
     {
+        private readonly Context _context;
         private readonly ReaderWriterLock _lock = new ReaderWriterLock();
+
         private SlimChain _chain;
-        private bool _syncing;
-        
+        private bool _syncing = true;
+
         public override string FileName => ".blocks";
 
         public event SyncFinishedHandler OnSyncFinished;
 
-        public Blocks(string basePath = null)
-            : base(basePath)
+        public Blocks(Context context)
         {
+            _context = context;
             _chain = new SlimChain(Network.Main.GenesisHash);
         }
 
@@ -36,7 +45,7 @@ namespace my_node.storage
 
         public Task SyncSlimChainAsync(NodeManager nodeManager, CancellationToken cancellationToken)
         {
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 try
                 {
@@ -47,6 +56,21 @@ namespace my_node.storage
                         node.SynchronizeSlimChain(_chain, cancellationToken: cancellationToken);
 
                     Save();
+
+                    var tip = await GetDbTipAsync(cancellationToken) ?? new Block();
+
+                    for (var h = _chain.Height; h > tip.Height; h--)
+                    {
+                        var block = _chain.GetBlock(h);
+                        await _context.Blocks.AddAsync(new Block
+                        {
+                            Hash = block.Hash.ToString(),
+                            Height = block.Height
+                        }, cancellationToken);
+                    }
+
+                    await _context.SaveChangesAsync(cancellationToken);
+
                     OnSyncFinished?.Invoke(this, new EventArgs());
                     // TODO: Sign event on transactions
 
@@ -69,7 +93,7 @@ namespace my_node.storage
                     Console.WriteLine("\rSynchronizing chain...");
 
                     await ConsoleWait(SyncSlimChainAsync(nodeManager, cancellationToken));
-                    
+
                     cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(5));
 
                     if (!cancellationToken.IsCancellationRequested)
@@ -91,7 +115,6 @@ namespace my_node.storage
                 _chain.Load(stream);
 
             return true;
-
         }
 
         public override void Save()
@@ -104,7 +127,6 @@ namespace my_node.storage
                 Console.WriteLine($"\rSlimchain file saved to {stream.Name}");
             }
         }
-
         public void SetChain(SlimChain slimChain)
         {
             _chain = slimChain;
@@ -157,6 +179,14 @@ namespace my_node.storage
                 tip = _chain.TipBlock;
 
             return tip;
+        }
+
+        public Task<Block> GetDbTipAsync(CancellationToken? cancellationToken = null)
+        {
+            return _context.Blocks
+                .AsNoTracking()
+                .OrderBy(b => b.Height)
+                .LastOrDefaultAsync(cancellationToken ?? CancellationToken.None);
         }
 
         internal uint256 GetPreviousBlockHash(uint256 blockHash)
