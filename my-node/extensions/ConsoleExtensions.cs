@@ -11,14 +11,21 @@ namespace my_node.extensions
             var count = 0;
             while (!task.IsCompleted)
             {
-                if (count++ % 4 == 1)
-                    Console.Write("\rWait");
-                else if (count++ % 4 == 2)
-                    Console.Write("\rWait.");
-                else if (count++ % 4 == 3)
-                    Console.Write("\rWait..");
-                else if (count++ % 4 == 4)
-                    Console.Write("\rWait...");
+                switch (count++ % 4)
+                {
+                    case 0:
+                        Console.Write("\rWait");
+                        break;
+                    case 1:
+                        Console.Write("\rWait.");
+                        break;
+                    case 2:
+                        Console.Write("\rWait..");
+                        break;
+                    default:
+                        Console.Write("\rWait...");
+                        break;
+                }
 
                 Thread.Sleep(100);
             }

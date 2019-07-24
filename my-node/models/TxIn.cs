@@ -10,6 +10,7 @@ namespace my_node.models
         public uint PrevN { get; set; }
         public byte[] ScriptSig { get; set; }
         public uint Sequence { get; set; }
+        public long SystemVersion { get; set; }
 
         public virtual Transaction PrevTransaction { get; set; }
     }

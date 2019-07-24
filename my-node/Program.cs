@@ -67,6 +67,7 @@ namespace my_node
 
         static Task GetSlimChainAsync(Node node)
         {
+            Console.WriteLine("Downloading SlimChain.");
             return Task.Run(() => { _blocks.SetChain(node.GetSlimChain()); });
         }
     }

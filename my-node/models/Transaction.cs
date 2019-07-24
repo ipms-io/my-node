@@ -11,8 +11,10 @@ namespace my_node.models
         public byte InCount { get; set; }
         public byte OutCount { get; set; }
         public uint LockTime { get; set; }
+        public long SystemVersion { get; set; }
 
-        public virtual List<TxIn> In { get; set; }
-        public virtual List<TxOut> Out { get; set; }
+        //public virtual ICollection<TxIn> In { get; set; }
+        //public virtual ICollection<TxOut> Out { get; set; }
+        public virtual Block Block { get; set; }
     }
 }

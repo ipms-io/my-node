@@ -10,6 +10,7 @@ namespace my_node.models
         public uint Bits { get; set; }
         public int Version { get; set; }
         public uint Nonce { get; set; }
+        public long SystemVersion { get; set; }
 
         public BlockHeader()
         { }

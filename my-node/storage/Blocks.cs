@@ -16,6 +16,7 @@ using Block = my_node.models.Block;
 namespace my_node.storage
 {
     public delegate void SyncFinishedHandler(object source, EventArgs e);
+    public delegate void SyncCatastrophicErrorHandler(object source, EventArgs e);
 
     public class Blocks : StorageBase
     {
@@ -28,6 +29,7 @@ namespace my_node.storage
         public override string FileName => ".blocks";
 
         public event SyncFinishedHandler OnSyncFinished;
+        public event SyncCatastrophicErrorHandler OnSyncCatastrophicError;
 
         public Blocks(Context context)
         {
@@ -78,14 +80,23 @@ namespace my_node.storage
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"\rERROR: {ex}");
-                    SyncSlimChain(nodeManager, cancellationToken);
+                     Console.WriteLine($"\rERROR: {ex}");
+                    OnSyncCatastrophicError?.Invoke(this, EventArgs.Empty);
                 }
             }, cancellationToken);
         }
 
         public void SyncSlimChain(NodeManager nodeManager, CancellationToken cancellationToken)
         {
+            OnSyncCatastrophicError = null;
+            OnSyncCatastrophicError += (source, e) =>
+            {
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.WriteLine($"\rBlocks: Recovering from error. Initializing again.");
+                Console.ForegroundColor = ConsoleColor.White;
+                SyncSlimChain(nodeManager, cancellationToken);
+            };
+
             Task.Run(async () =>
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -94,7 +105,7 @@ namespace my_node.storage
 
                     await ConsoleWait(SyncSlimChainAsync(nodeManager, cancellationToken));
 
-                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(5));
+                    cancellationToken.WaitHandle.WaitOne(TimeSpan.FromHours(25));
 
                     if (!cancellationToken.IsCancellationRequested)
                         continue;

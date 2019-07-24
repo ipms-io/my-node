@@ -10,5 +10,6 @@ namespace my_node.models
         public string TxHash { get; set; }
         public byte[] ScriptPubKey { get; set; }
         public ulong Value { get; set; }
+        public long SystemVersion { get; set; }
     }
 }
